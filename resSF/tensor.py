@@ -19,7 +19,7 @@ import kkcalc2 as kk
 import numpy as np
 
 # Local
-from rSF.tensor_types import (
+from resSF.tensor_types import (
     Alignment,
     array_type,
     asp_array_type,

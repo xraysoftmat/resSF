@@ -3,8 +3,8 @@ Tests for the structure module.
 """
 
 import pytest
-from rSF.tensor_types import Alignment, tensor_type
-from rSF.tensor import AtomicScatteringTensor, CrystalScatteringTensor, Complexity
+from resSF.tensor_types import Alignment, tensor_type
+from resSF.tensor import AtomicScatteringTensor, CrystalScatteringTensor, Complexity
 
 
 class TestAtomicScatteringTensor:
