@@ -1,7 +1,9 @@
 # resSF
 Resonant structure factors
 
-[![PyPI version](https://img.shields.io/pypi/v/resSF.svg)](https://pypi.org/project/resSF)
+
+[![PyPI version](https://img.shields.io/pypi/v/resSF.svg)](https://pypi.org/project/resSF) [![coveralls](https://coveralls.io/repos/github/xraysoftmat/resSF/badge.svg)](https://coveralls.io/github/xraysoftmat/resSF)
+
 
 The package is designed to simplify resonant scattering calculations for crystallographic and diffraction studies, providing efficient workflows for:
 
