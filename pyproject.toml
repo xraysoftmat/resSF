@@ -11,7 +11,7 @@
     name = "resSF"
     version = "0.0.0"
     description = "Resonant structure factor calculations."
-    readme = "README.rst"
+    readme = "README.md"
     license-files = ["MIT.LICENSE"]
     keywords = ["X-ray", "Resonant", "Structure", "Factor", "Intensity"]
     authors = [
