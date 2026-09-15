@@ -29,8 +29,8 @@ class structure:
             atoms = [(atom.symbol, tuple(atom.position)) for atom in atoms]
         self.atoms = atoms
 
-    @staticmethod
-    def from_cif(filepath: str | Path) -> "structure":
+    @classmethod
+    def from_cif(cls, filepath: str | Path) -> Self:
         if isinstance(filepath, str):
             filepath = Path(filepath)
         if not filepath.is_file():
@@ -40,7 +40,7 @@ class structure:
         pmg = pmgStruct.from_file(str(filepath))
         # Convert to the internal representation
         atoms = [(site.specie.symbol, tuple(site.frac_coords)) for site in pmg]
-        return structure(atoms)
+        return cls(atoms)
 
     def __len__(self) -> int:
         return len(self.atoms)

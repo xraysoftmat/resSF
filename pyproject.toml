@@ -119,8 +119,11 @@ line-ending = "auto"
     ]
 
     exclude = [
-        '^tests*$',
-        '.*/gui/.*',
+        '^tests/.*$',
+    ]
+
+    exclude_files = [
+        '^tests/.*$',
     ]
 
     override_SS05 = [
