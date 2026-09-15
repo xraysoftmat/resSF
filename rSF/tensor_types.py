@@ -50,7 +50,10 @@ Can be isotropic, in-plane isotropic, xyz, or full tensor."""
 """Any available tensor for a single energy value."""
 np_array_isotropic = np.ndarray[tuple[int], np.dtype[np.floating | np.complexfloating]]
 array_isotropic = (
-    list[tensor_isotropic] | np_array_isotropic | kk.models.asp | kk.models.asf
+    list[tensor_isotropic]
+    | np_array_isotropic
+    | kk.models.asp_abstract
+    | kk.models.asf_abstract
 )
 """An array of isotropic scattering tensors, representing isotropic scattering in any direction for
 multiple energy values."""
@@ -97,11 +100,11 @@ array_type = (
 )
 """Any available tensor array type for multiple energy values."""
 
-asp_iso = kk.models.asp
+asp_iso = kk.models.asp_abstract
 """A single kkcalc2 asp model for isotropic scattering."""
-asp_inplane_iso = tuple[kk.models.asp, kk.models.asp]
+asp_inplane_iso = tuple[kk.models.asp_abstract, kk.models.asp_abstract]
 """A tuple of two kkcalc2 asp models for in-plane isotropic scattering."""
-asp_xyz = tuple[kk.models.asp, kk.models.asp, kk.models.asp]
+asp_xyz = tuple[kk.models.asp_abstract, kk.models.asp_abstract, kk.models.asp_abstract]
 """A tuple of three kkcalc2 asp models for scattering in the x, y, and z directions."""
 asp_full = tuple[asp_xyz, asp_xyz, asp_xyz]
 """A full 3x3 matrix of kkcalc2 asp models for anisotropic scattering in all directions."""

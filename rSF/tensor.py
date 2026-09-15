@@ -11,20 +11,35 @@ We define the substrate frame as follows:
 
 # Stdlib
 from collections.abc import Sequence
+from typing import Literal, Self
+from enum import Enum
 
 # Third-party
-import numpy as np
 import kkcalc2 as kk
+import numpy as np
 
 # Local
 from rSF.tensor_types import (
     Alignment,
     array_type,
-    np_single,
-    np_array_type,
     asp_array_type,
+    np_array_type,
+    np_single,
     tensor_type,
 )
+
+
+class Complexity(Enum):
+    """
+    An enumeration to represent the complexity of the scattering tensor.
+
+    Complex values are automatically inferred.
+    """
+
+    REAL = "real"
+    """The tensor is real-valued."""
+    IMAG = "imag"
+    """The tensor is imaginary-valued."""
 
 
 class AtomicScatteringTensor:
@@ -44,6 +59,8 @@ class AtomicScatteringTensor:
         The scattering tensor values, which can be isotropic, in-plane isotropic, xyz, or full tensor.
     alignment : Alignment, optional
         The alignment of the tensor, default is Alignment.ISOTROPIC.
+    complexity : Literal["real" | "imag"] | Complexity, optional
+        The complexity of the tensor, default is None. Required if the tensor is a numpy array and not complex.
 
     Notes
     -----
@@ -78,6 +95,7 @@ class AtomicScatteringTensor:
         | None = None,
         tensor: tensor_type | array_type | None = None,
         alignment: Alignment | None = None,
+        complexity: Literal["real", "imag"] | Complexity | None = None,
     ):
         # First check if the tensors are kkcalc2 objects, which already have energies and values defined
         self.energy_domain: tuple[float, float] = (0, np.inf)
@@ -85,6 +103,14 @@ class AtomicScatteringTensor:
         self._tensor: asp_array_type | np_single
         """The scattering tensor values, which can be isotropic, in-plane isotropic, xyz, or full_tensor,
         represented as a kkcalc2 object or a tuple of kkcalc2 objects depending on the alignment."""
+        if complexity in Complexity:
+            complexity = Complexity(complexity)
+        elif complexity is None:
+            pass
+        else:
+            raise ValueError(
+                f"Invalid complexity value provided; {complexity}. Must be 'real' or 'imag'."
+            )
 
         if isinstance(tensor, (kk.models.asp_abstract, kk.models.asf_abstract)):
             # A single kkcalc2 object
@@ -93,22 +119,33 @@ class AtomicScatteringTensor:
                 if isinstance(tensor, kk.models.asp_abstract)
                 else tensor.to_ASP()
             )
+            print("HERE")
             self.energy_domain = (tensor.energies[0], tensor.energies[-1])
-            composition = tensor.stoichiometry.composition
-            if len(composition) > 1:
-                raise ValueError(
-                    "The provided kkcalc2 object contains multiple atomic types. "
-                    "Please provide a single atomic type for the AtomicScatteringTensor."
-                )
+            stoich = tensor.stoichiometry
+            if stoich is None:
+                if atom is None:
+                    raise ValueError(
+                        "The provided kkcalc2 object does not have a defined stoichiometry. "
+                        "Please provide an atomic type for the AtomicScatteringTensor."
+                    )
+                self.atom_type = atom
             else:
-                # Convert int to string label for the atom type
-                atom_num = composition[0][0]
-                if isinstance(atom_num, int):
-                    self.atom_type = kk.stoichiometry._atomic_number_to_element(
-                        atom_num
+                composition = stoich.composition
+                if len(composition) > 1:
+                    raise ValueError(
+                        "The provided kkcalc2 object contains multiple atomic types. "
+                        "Please provide a single atomic type for the AtomicScatteringTensor."
                     )
                 else:
-                    self.atom_type = atom_num
+                    # Convert int to string label for the atom type
+                    atom_num = composition[0][0]
+                    if isinstance(atom_num, int):
+                        self.atom_type = kk.stoichiometry._atomic_number_to_element(
+                            atom_num
+                        )
+                    else:
+                        self.atom_type = atom_num
+            self._alignment = Alignment.ISOTROPIC
 
         elif isinstance(tensor, tuple) and isinstance(
             tensor[0], (kk.models.asp_abstract, kk.models.asf)
@@ -116,21 +153,30 @@ class AtomicScatteringTensor:
             # A tuple of kkcalc2 objects
             non_full_tensors: list[kk.models.asp_abstract] = []
             energy_window = None
-            composition = tensor[0].stoichiometry.composition
-            if len(composition) > 1:
-                raise ValueError(
-                    "The provided kkcalc2 object contains multiple atomic types. "
-                    "Please provide a single atomic type for the AtomicScatteringTensor."
-                )
+            stoich = tensor[0].stoichiometry
+            if stoich is None:
+                if atom is None:
+                    raise ValueError(
+                        "The provided kkcalc2 object does not have a defined stoichiometry. "
+                        "Please provide an atomic type for the AtomicScatteringTensor."
+                    )
+                self.atom_type = atom
             else:
-                # Convert int to string label for the atom type
-                atom_num = composition[0][0]
-                if isinstance(atom_num, int):
-                    self.atom_type = kk.stoichiometry._atomic_number_to_element(
-                        atom_num
+                composition = stoich.composition
+                if len(composition) > 1:
+                    raise ValueError(
+                        "The provided kkcalc2 object contains multiple atomic types. "
+                        "Please provide a single atomic type for the AtomicScatteringTensor."
                     )
                 else:
-                    self.atom_type = atom_num
+                    # Convert int to string label for the atom type
+                    atom_num = composition[0][0]
+                    if isinstance(atom_num, int):
+                        self.atom_type = kk.stoichiometry._atomic_number_to_element(
+                            atom_num
+                        )
+                    else:
+                        self.atom_type = atom_num
 
             for i, t in enumerate(tensor):
                 assert isinstance(t, (kk.models.asp_abstract, kk.models.asf)), (
@@ -152,26 +198,38 @@ class AtomicScatteringTensor:
                         max(energy_window[0], t.energies[0]),
                         min(energy_window[1], t.energies[-1]),
                     )
-                composition = tensor[0].stoichiometry.composition
-                if len(composition) > 1:
-                    raise ValueError(
-                        f"The provided kkcalc2 object at index {i} contains multiple atomic types. "
-                        "Please provide a single atomic type for the AtomicScatteringTensor."
-                    )
+                stoich = tensor[i].stoichiometry
+                if stoich is None:
+                    if atom is None:
+                        raise ValueError(
+                            f"The provided kkcalc2 object at index {i} does not have a defined stoichiometry. "
+                            "Please provide an atomic type for the AtomicScatteringTensor."
+                        )
+                    atom_type = atom
                 else:
-                    # Convert int to string label for the atom type
-                    atom_num = composition[0][0]
-                    if isinstance(atom_num, int):
-                        atom_type = kk.stoichiometry._atomic_number_to_element(atom_num)
+                    composition = stoich.composition
+                    if len(composition) > 1:
+                        raise ValueError(
+                            f"The provided kkcalc2 object at index {i} contains multiple atomic types. "
+                            "Please provide a single atomic type for the AtomicScatteringTensor."
+                        )
                     else:
-                        atom_type = atom_num
+                        # Convert int to string label for the atom type
+                        atom_num = composition[0][0]
+                        if isinstance(atom_num, int):
+                            atom_type = kk.stoichiometry._atomic_number_to_element(
+                                atom_num
+                            )
+                        else:
+                            atom_type = atom_num
                 if self.atom_type != atom_type:
                     raise ValueError(
                         f"The kkcalc2 object at index {i} corresponds to a different atomic type ({atom_type}) than the first one ({self.atom_type})."
                     )
 
             tensors = tuple(non_full_tensors)
-            self.energy_domain = energy_window
+            if energy_window is not None:
+                self.energy_domain = energy_window
             if len(tensors) == 3:
                 self._alignment = Alignment.XYZ
                 self._tensor = tensors
@@ -189,21 +247,30 @@ class AtomicScatteringTensor:
         ):
             energy_window = None
             tensors: list[list[kk.models.asp_abstract]] = [[], [], []]
-            composition = tensor[0][0].stoichiometry.composition
-            if len(composition) > 1:
-                raise ValueError(
-                    "The provided kkcalc2 object contains multiple atomic types. "
-                    "Please provide a single atomic type for the AtomicScatteringTensor."
-                )
+            stoich = tensor[0][0].stoichiometry
+            if stoich is None:
+                if atom is None:
+                    raise ValueError(
+                        "The provided kkcalc2 object does not have a defined stoichiometry. "
+                        "Please provide an atomic type for the AtomicScatteringTensor."
+                    )
+                self.atom_type = atom
             else:
-                # Convert int to string label for the atom type
-                atom_num = composition[0][0]
-                if isinstance(atom_num, int):
-                    self.atom_type = kk.stoichiometry._atomic_number_to_element(
-                        atom_num
+                composition = stoich.composition
+                if len(composition) > 1:
+                    raise ValueError(
+                        "The provided kkcalc2 object contains multiple atomic types. "
+                        "Please provide a single atomic type for the AtomicScatteringTensor."
                     )
                 else:
-                    self.atom_type = atom_num
+                    # Convert int to string label for the atom type
+                    atom_num = composition[0][0]
+                    if isinstance(atom_num, int):
+                        self.atom_type = kk.stoichiometry._atomic_number_to_element(
+                            atom_num
+                        )
+                    else:
+                        self.atom_type = atom_num
             for i, row in enumerate(tensor):
                 assert isinstance(row, tuple) and len(row) == 3, (
                     "Each row in the tuple must be a tuple of 3 kkcalc2 objects (asp or asf)."
@@ -222,21 +289,30 @@ class AtomicScatteringTensor:
                             max(energy_window[0], t.energies[0]),
                             min(energy_window[1], t.energies[-1]),
                         )
-                    composition = tensor[i][j].stoichiometry.composition
-                    if len(composition) > 1:
-                        raise ValueError(
-                            f"The provided kkcalc2 object at index {i} contains multiple atomic types. "
-                            "Please provide a single atomic type for the AtomicScatteringTensor."
-                        )
+                    stoich = tensor[i][j].stoichiometry
+                    if stoich is None:
+                        if atom is None:
+                            raise ValueError(
+                                f"The provided kkcalc2 object at index {i},{j} does not have a defined stoichiometry. "
+                                "Please provide an atomic type for the AtomicScatteringTensor."
+                            )
+                        atom_type = atom
                     else:
-                        # Convert int to string label for the atom type
-                        atom_num = composition[0][0]
-                        if isinstance(atom_num, int):
-                            atom_type = kk.stoichiometry._atomic_number_to_element(
-                                atom_num
+                        composition = stoich.composition
+                        if len(composition) > 1:
+                            raise ValueError(
+                                f"The provided kkcalc2 object at index {i} contains multiple atomic types. "
+                                "Please provide a single atomic type for the AtomicScatteringTensor."
                             )
                         else:
-                            atom_type = atom_num
+                            # Convert int to string label for the atom type
+                            atom_num = composition[0][0]
+                            if isinstance(atom_num, int):
+                                atom_type = kk.stoichiometry._atomic_number_to_element(
+                                    atom_num
+                                )
+                            else:
+                                atom_type = atom_num
                     if self.atom_type != atom_type:
                         raise ValueError(
                             f"The kkcalc2 object at index {i},{j} corresponds to a different atomic type ({atom_type}) than the first one ({self.atom_type})."
@@ -258,7 +334,8 @@ class AtomicScatteringTensor:
                 for t in row
             ), "All elements in the 3x3 tuple must be kkcalc2 objects (asp or asf)."
             self._tensor = tensors_tuple
-            self.energy_domain = energy_window
+            if energy_window is not None:
+                self.energy_domain = energy_window
 
         # Check if KKCalc2 objects have already defined energies and values
         if self.energy_domain is not None and self.energy_domain != (0, np.inf):
@@ -272,6 +349,9 @@ class AtomicScatteringTensor:
                     f"Provided atom type `{atom}` does not match the atomic type inferred from the kkcalc2 object `{self.atom_type}`."
                 )
             return
+        else:
+            # Otherwise, define the atom type by the input string.
+            self.atom_type = atom
 
         # Use the provided energies and atomic scattering factors to create asp objects.
         energies = np.array(energies, dtype=np.float64)
@@ -288,10 +368,11 @@ class AtomicScatteringTensor:
         self.energy_domain = (np.min(energies), np.max(energies))
 
         if not isinstance(tensor, (float, int, kk.models.asp_abstract)):
-            tensor = np.array(tensor, dtype=np.float64)
+            tensor = np.array(tensor)
 
         # Singular energy values
         if L == 1:
+            shape = (1,)
             if isinstance(tensor, (float, int)):
                 self._alignment = Alignment.ISOTROPIC
                 self._tensor = tensor
@@ -320,13 +401,114 @@ class AtomicScatteringTensor:
                 "Energies and values must have the same length."
             )
             if len(shape) == 1:
-                self._alignment = Alignment.ISOTROPIC
+                if isinstance(tensor[0], (complex)):
+                    self._alignment = Alignment.ISOTROPIC
+                    tensor_re = kk.models.asf_re(energies, tensor.real)
+                    tensor_im = kk.models.asf_im(energies, tensor.imag)
+                    self._tensor = kk.models.asf_complex(tensor_re, tensor_im).to_ASP()
+                elif isinstance(tensor[0], (float, int)):
+                    self._alignment = Alignment.ISOTROPIC
+                    if complexity is None:
+                        raise ValueError(
+                            "Complexity must be specified as 'real' or 'imag' when the tensor is a numpy array and not complex."
+                        )
+                    elif complexity == Complexity.REAL:
+                        self._tensor = kk.models.asf_re(energies, tensor).to_ASP()
+                    else:
+                        self._tensor = kk.models.asf_im(energies, tensor).to_ASP()
+                elif isinstance(tensor[0], (kk.models.asp_abstract)):
+                    if L == 2 and len(tensor) == 2:
+                        self._alignment = Alignment.INPLANE_ISOTROPIC
+                    elif L == 3 and len(tensor) == 3:
+                        self._alignment = Alignment.XYZ
+                    else:
+                        raise TypeError(
+                            f"Invalid number of kkcalc2 asp tensor values ({L} different asp objects) provided."
+                        )
+                    self._tensor = tensor
+                else:
+                    raise TypeError(
+                        f"Invalid tensor values provided; {type(tensor[0])}."
+                    )
             elif len(shape) == 2 and shape[1] == 2:
                 self._alignment = Alignment.INPLANE_ISOTROPIC
+                if complexity is None:
+                    raise ValueError(
+                        "Complexity must be specified as 'real' or 'imag' when the tensor is a numpy array and not complex."
+                    )
+                elif complexity == Complexity.REAL:
+                    cls = kk.models.asf_re
+                else:
+                    cls = kk.models.asf_im
+                self._tensor = (
+                    cls(energies, tensor[:, 0]).to_ASP(),
+                    cls(energies, tensor[:, 1]).to_ASP(),
+                )
             elif len(shape) == 2 and shape[1] == 3:
                 self._alignment = Alignment.XYZ
+                if np.iscomplexobj(tensor):
+                    # Convert to complex asp
+                    asps: list[kk.models.asp_abstract] = []
+                    for i in range(3):
+                        tensor_re = kk.models.asf_re(energies, tensor.real)
+                        tensor_im = kk.models.asf_im(energies, tensor.imag)
+                        tensor_complex = kk.models.asf_complex(
+                            tensor_re, tensor_im
+                        ).to_ASP()
+                        asps.append(tensor_complex)
+                    self._tensor = tuple(asps)
+                elif complexity is None:
+                    raise ValueError(
+                        "Complexity must be specified as 'real' or 'imag' when the tensor is a numpy array and not complex."
+                    )
+                elif complexity == Complexity.REAL:
+                    cls = kk.models.asf_re
+                else:
+                    cls = kk.models.asf_im
+                self._tensor = (
+                    cls(energies, tensor[:, 0]).to_ASP(),
+                    cls(energies, tensor[:, 1]).to_ASP(),
+                    cls(energies, tensor[:, 2]).to_ASP(),
+                )
             elif len(shape) == 3 and shape[1:] == (3, 3):
                 self._alignment = Alignment.FULL
+                if np.iscomplexobj(tensor):
+                    # Convert to complex asp
+                    asps: list[list[kk.models.asp_abstract]] = [[], [], []]
+                    for i in range(3):
+                        for j in range(3):
+                            tensor_re = kk.models.asf_re(energies, tensor.real)
+                            tensor_im = kk.models.asf_im(energies, tensor.imag)
+                            tensor_complex = kk.models.asf_complex(
+                                tensor_re, tensor_im
+                            ).to_ASP()
+                            asps[i].append(tensor_complex)
+                    self._tensor = tuple(tuple(row) for row in asps)
+                if complexity is None:
+                    raise ValueError(
+                        "Complexity must be specified as 'real' or 'imag' when the tensor is a numpy array and not complex."
+                    )
+                elif complexity == Complexity.REAL:
+                    cls = kk.models.asf_re
+                else:
+                    cls = kk.models.asf_im
+                self._tensor = (
+                    (
+                        cls(energies, tensor[:, 0, 0]).to_ASP(),
+                        cls(energies, tensor[:, 0, 1]).to_ASP(),
+                        cls(energies, tensor[:, 0, 2]).to_ASP(),
+                    ),
+                    (
+                        cls(energies, tensor[:, 1, 0]).to_ASP(),
+                        cls(energies, tensor[:, 1, 1]).to_ASP(),
+                        cls(energies, tensor[:, 1, 2]).to_ASP(),
+                    ),
+                    (
+                        cls(energies, tensor[:, 2, 0]).to_ASP(),
+                        cls(energies, tensor[:, 2, 1]).to_ASP(),
+                        cls(energies, tensor[:, 2, 2]).to_ASP(),
+                    ),
+                )
             else:
                 raise ValueError(f"Invalid tensor values provided with shape {shape}.")
         else:
@@ -334,7 +516,8 @@ class AtomicScatteringTensor:
 
         if alignment is not None and alignment != self._alignment:
             raise ValueError(
-                f"Provided alignment `{alignment}` does not match inferred alignment `{self._alignment}`."
+                f"Provided alignment `{alignment}` does not match inferred alignment `{self._alignment}`"
+                + f" from tensors values with shape {shape} and energies {energies}."
             )
 
     @property
@@ -451,6 +634,48 @@ class AtomicScatteringTensor:
             case _:
                 raise ValueError(f"Invalid alignment: {self._alignment}")
 
+    def copy(self) -> Self:
+        """
+        Create a copy of the tensor object.
+
+        Returns
+        -------
+        Self
+            A new instance of the tensor object with the same properties as the original.
+        """
+        tensor_copy: asp_array_type | np_single
+        if isinstance(self._tensor, tuple):
+            if isinstance(self._tensor[0], tuple):
+                tensor_copy = tuple(
+                    tuple(t.copy() for t in row) for row in self._tensor
+                )
+            else:
+                tensor_copy = tuple(t.copy() for t in self._tensor)
+        elif isinstance(self._tensor, kk.models.asp_abstract):
+            tensor_copy = self._tensor.copy()
+        else:
+            if isinstance(self._tensor, np.ndarray):
+                tensor_copy = self._tensor.copy()
+                # Also
+            else:
+                # int/float
+                tensor_copy = self._tensor
+            # Also need to copy the energy window, but since it's a single value, we can just use the same value.
+            return self.__class__(
+                atom=self.atom_type,
+                energies=self.energy_domain[0],
+                tensor=tensor_copy,
+                alignment=self._alignment,
+            )
+        # Otherwise
+        obj = self.__class__(
+            atom=self.atom_type,
+            energies=None,
+            tensor=tensor_copy,
+            alignment=self._alignment,
+        )
+        return obj
+
 
 class CrystalScatteringTensor:
     """
@@ -486,10 +711,10 @@ class CrystalScatteringTensor:
         | list[AtomicScatteringTensor]
         | None = None,
     ):
-        self.energies: (
-            np.ndarray[tuple[int], np.dtype[np.floating]] | float | int | None
-        ) = None
+        self.energy_domain: tuple[float, float] = (0, np.inf)
+        """The valid energy range for the scattering tensors, defined as a tuple (min_energy, max_energy)."""
         self.scattering_factors: dict[str, AtomicScatteringTensor] = {}
+        """A dictionary mapping atomic types to their corresponding scattering tensors."""
         if scattering_factors is not None:
             # Collect energies from the first tensor to ensure consistency
             tensor = (
@@ -497,51 +722,60 @@ class CrystalScatteringTensor:
                 if isinstance(scattering_factors, dict)
                 else scattering_factors[0]  # list
             )
-            self.energies = energies = tensor.energies
+            self.energy_domain = energy_domain = tensor.energy_domain
 
             if isinstance(scattering_factors, dict):
                 for atom, tensor in (scattering_factors or {}).items():
-                    # Check if the energies match
-                    if isinstance(energies, np.ndarray):
-                        if not np.all(tensor.energies == energies):
-                            raise ValueError(
-                                "All scattering tensors must have the same energies. "
-                                f"Atom '{atom}' has different energies."
-                            )
-                    else:
-                        if energies != tensor.energies:
-                            raise ValueError(
-                                "All scattering tensors must have the same energies. "
-                                f"Atom '{atom}' has different energies ({tensor.energies} vs {energies})."
-                            )
-                    # Add the item.
+                    # Restrict the new energy domain, and complain if no overlap.
+                    other_domain = tensor.energy_domain
+                    if (
+                        other_domain[0] > energy_domain[1]
+                        or other_domain[1] < energy_domain[0]
+                    ):
+                        raise ValueError(
+                            f"Energy domains of scattering tensors for atom '{atom}' do not overlap. "
+                            f"Existing domain: {energy_domain}, new domain: {other_domain}."
+                        )
+                    # Check if the atom type already exists in the scattering factors
                     if atom in self.scattering_factors:
                         raise ValueError(
                             f"Duplicate scattering tensor for atom type '{atom}' found."
                         )
+                    # Modify the current domain
+                    self.energy_domain = (
+                        max(energy_domain[0], other_domain[0]),
+                        min(energy_domain[1], other_domain[1]),
+                    )
+                    # Add the item.
                     self.__setitem__(atom, tensor)
 
             elif isinstance(scattering_factors, list):
                 for tensor in scattering_factors:
-                    # Check if the energies match
-                    if isinstance(energies, np.ndarray):
-                        if not np.all(tensor.energies == energies):
-                            raise ValueError(
-                                "All scattering tensors must have the same energies. "
-                                f"Atom '{tensor.atom_type}' has different energies."
-                            )
-                    else:
-                        if energies != tensor.energies:
-                            raise ValueError(
-                                "All scattering tensors must have the same energies. "
-                                f"Atom '{tensor.atom_type}' has different energies ({tensor.energies} vs {energies})."
-                            )
+                    # Restrict the new energy domain, and complain if no overlap.
+                    other_domain = tensor.energy_domain
+                    if (
+                        other_domain[0] > energy_domain[1]
+                        or other_domain[1] < energy_domain[0]
+                    ):
+                        raise ValueError(
+                            f"Energy domains of scattering tensors for atom '{tensor.atom_type}' do not overlap. "
+                            f"Existing domain: {energy_domain}, new domain: {other_domain}."
+                        )
+                    # Modify the current domain
+                    self.energy_domain = (
+                        max(energy_domain[0], other_domain[0]),
+                        min(energy_domain[1], other_domain[1]),
+                    )
                     # Add the item
                     if tensor.atom_type in self.scattering_factors:
                         raise ValueError(
                             f"Duplicate scattering tensor for atom type '{tensor.atom_type}' found."
                         )
                     self.__setitem__(tensor.atom_type, tensor)
+            else:
+                raise TypeError(
+                    "scattering_factors must be a dictionary or a list of AtomicScatteringTensor objects."
+                )
 
     def __setitem__(self, atom: str, tensor: AtomicScatteringTensor):
         """
