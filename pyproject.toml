@@ -30,7 +30,7 @@
         "matplotlib~=3.10",
         "ase~=3.0",
         "pymatgen~=2026.0",
-        "kkcalc2~=1.2.1 ",
+        "kkcalc2~=1.2.1",
     ]
 
     classifiers = [
@@ -72,9 +72,12 @@ docs = [
 [tool.hatch.build]
 directory = "./dist" # Output directory for built packages
 targets.sdist.include = [
-    "XEFI/**",
+    "resSF/**",
     # "examples/data/**",
 ]
+targets.wheel.packages = [
+    "resSF",
+ ]
 targets.sdist.exclude = [
     "docs/*",
     "tests/*",

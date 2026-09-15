@@ -2,10 +2,32 @@
 Tests for the structure module.
 """
 
+# External
 import pytest
-from resSF.tensor_types import Alignment, tensor_type
-from resSF.tensor import AtomicScatteringTensor, CrystalScatteringTensor, Complexity
 
+# Internal
+from resSF.tensor import AtomicScatteringTensor, Complexity, CrystalScatteringTensor
+from resSF.tensor_types import Alignment, tensor_type
+
+# Fixtures 
+# ruff: disable[F401]
+from tests.fixtures.tensors import (
+    array_energies,
+    array_tensor_full,
+    array_tensor_inplane_isotropic,
+    array_tensor_isotropic,
+    array_tensor_xyz,
+    kk_asp_full,
+    kk_asp_inplane_isotropic,
+    kk_asp_isotropic,
+    kk_asp_xyz,
+    tensor_full,
+    tensor_inplane_isotropic,
+    tensor_isotropic,
+    tensor_xyz,
+)
+
+# ruff: enable[F401]
 
 class TestAtomicScatteringTensor:
     """Tests for the atomic scattering tensor model."""

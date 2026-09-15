@@ -53,7 +53,7 @@ jobs:
 
       - name: Install
         run: |
-          python -m pip install . --group dev --group docs
+          python -m pip install . --group dev
           pip list
 
       - name: Run test suite
