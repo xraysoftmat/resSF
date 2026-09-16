@@ -2,9 +2,10 @@
 PyTest fixtures for the testing structures.
 """
 
-import pytest
-import numpy as np
+# External
 import kkcalc2 as kk
+import numpy as np
+import pytest
 
 
 @pytest.fixture

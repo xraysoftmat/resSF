@@ -2,13 +2,15 @@
 Types to support the scattering tensor calculations for materials.
 """
 
+# StdLib
 from enum import StrEnum
-import numpy as np
+
+# Third-party
 import kkcalc2 as kk
+import numpy as np
+
 
 # Enumerates
-
-
 class Alignment(StrEnum):
     """
     Enum for alignment input types.

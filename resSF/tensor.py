@@ -11,8 +11,8 @@ We define the substrate frame as follows:
 
 # Stdlib
 from collections.abc import Sequence
-from typing import Literal, Self
 from enum import Enum
+from typing import Literal, Self
 
 # Third-party
 import kkcalc2 as kk
@@ -198,7 +198,7 @@ class AtomicScatteringTensor:
                         max(energy_window[0], t.energies[0]),
                         min(energy_window[1], t.energies[-1]),
                     )
-                stoich = tensor[i].stoichiometry
+                stoich = t.stoichiometry
                 if stoich is None:
                     if atom is None:
                         raise ValueError(
@@ -289,7 +289,7 @@ class AtomicScatteringTensor:
                             max(energy_window[0], t.energies[0]),
                             min(energy_window[1], t.energies[-1]),
                         )
-                    stoich = tensor[i][j].stoichiometry
+                    stoich = t.stoichiometry
                     if stoich is None:
                         if atom is None:
                             raise ValueError(

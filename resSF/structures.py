@@ -4,9 +4,13 @@ Representations of crystal structures and molecules, including atomic types and 
 Based on using pyXtal, which doesn't have energy dependent scattering factors.
 """
 
+# StdLib
 from pathlib import Path
 from typing import Self
-from ase import Atoms, Atom
+
+# Third-party
+from ase import Atom, Atoms
+from pymatgen.core.lattice import Lattice as pmgLattice
 from pymatgen.core.structure import Structure as pmgStruct
 
 
@@ -21,13 +25,32 @@ class structure:
     atoms : list of tuples or Atoms object
         Each tuple contains the atomic type (str) and its position (tuple of 3 floats).
         If an Atoms object is provided, it will be converted to the internal representation.
+    unitcell_lengths : tuple[float, float, float] | None, optional
+        The lengths of the unit cell (in Angstroms) along the a, b, and c axes.
+        By default, lengths are None.
+        Not necessary for calculating structure factors, but may be useful for visualisation.
+    angles : tuple[float, float, float] | None, optional
+        The interaxial angles (in degrees) of rotation; alpha, beta and gamma.
+        alpha is the angle between b and c, beta is the angle between a and c,
+        and gamma is the angle between a and b. By default, angles are None.
+        Not necessary for calculating structure factors, but may be useful for visualisation.
     """
 
-    def __init__(self, atoms: list[tuple[str, tuple[float, float, float]]] | Atoms):
+    def __init__(
+        self,
+        atoms: list[tuple[str, tuple[float, float, float]]] | Atoms,
+        unitcell_lengths: tuple[float, float, float] | None = None,
+        angles: tuple[float, float, float] | None = None,
+    ):
         if isinstance(atoms, Atoms):
             # Convert Atoms object to the internal representation
             atoms = [(atom.symbol, tuple(atom.position)) for atom in atoms]
         self.atoms = atoms
+        """The atomic basis of the structure, as a list of tuples (type, position)."""
+        self.unitcell_lengths = unitcell_lengths
+        """The lengths of the unit cell (in Angstroms) along the a, b, and c axes."""
+        self.angles = angles
+        """The interaxial angles (in degrees) of rotation; alpha, beta and gamma."""
 
     @classmethod
     def from_cif(cls, filepath: str | Path) -> Self:
@@ -40,7 +63,16 @@ class structure:
         pmg = pmgStruct.from_file(str(filepath))
         # Convert to the internal representation
         atoms = [(site.specie.symbol, tuple(site.frac_coords)) for site in pmg]
-        return cls(atoms)
+        lengths = tuple(pmg.lattice.abc)
+        angles = tuple(pmg.lattice.angles)
+        assert len(angles) == 3, (
+            f"Expected 3 angles in the CIF file, but found {len(angles)}"
+        )
+        assert len(lengths) == 3, (
+            f"Expected 3 unit cell lengths in the CIF file, but found {len(lengths)}"
+        )
+
+        return cls(atoms, unitcell_lengths=lengths, angles=angles)
 
     def __len__(self) -> int:
         return len(self.atoms)
@@ -128,6 +160,33 @@ class structure:
         """
         return self.__class__(self.atoms.copy())
 
+    def cartesian_positions(self) -> list[tuple[str, tuple[float, float, float]]]:
+        """
+        Get the Cartesian positions of the atoms.
+
+        Returns
+        -------
+        list of tuples
+            A list of tuples representing the Cartesian positions of the atoms.
+        """
+        lengths = self.unitcell_lengths
+        if lengths is None:
+            raise ValueError(
+                "Unit cell lengths must be set to convert fractional coordinates to Cartesian positions."
+            )
+        angles = self.angles
+        if angles is None:
+            raise ValueError(
+                "Angles must be set to convert fractional coordinates to Cartesian positions."
+            )
+        # Convert fractional coordinates to Cartesian using pymatgen
+        lattice = pmgLattice.from_parameters(*lengths, *angles)
+        cart_coords = [
+            (atom_type, tuple(lattice.get_cartesian_coords(frac_coord)))
+            for atom_type, frac_coord in self.atoms
+        ]
+        return cart_coords
+
 
 if __name__ == "__main__":
     import os
@@ -166,7 +225,7 @@ if __name__ == "__main__":
 
     for i, atom in enumerate(crystal_structure):
         print(f"Atom {i}: {atom[0]} at position {atom[1]}")
-        #
+
         expected_type = df.iloc[i]["Type"]
         expected_position = df.iloc[i][["X", "Y", "Z"]].values
         assert atom[0] == expected_type, (
